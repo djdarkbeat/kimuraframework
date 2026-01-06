@@ -1,6 +1,13 @@
 module Kimurai
   module BrowserBuilder
+    ENGINE_ALIASES = {
+      chrome: :selenium_chrome,
+      firefox: :selenium_firefox
+    }.freeze
+
     def self.build(engine, config = {}, spider:)
+      engine = ENGINE_ALIASES.fetch(engine, engine)
+
       begin
         require "kimurai/browser_builder/#{engine}_builder"
       rescue LoadError
