@@ -6,6 +6,7 @@ require 'uri'
 require 'active_support'
 require 'active_support/core_ext'
 require 'rbcat'
+require 'nukitori'
 
 require_relative 'kimurai/version'
 

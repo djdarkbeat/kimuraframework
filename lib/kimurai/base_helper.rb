@@ -1,5 +1,15 @@
 module Kimurai
   module BaseHelper
+    def extract(response, model: nil, &block)
+      caller_info = caller_locations(1, 1).first
+      method_name = caller_info.base_label
+      spider_dir = File.dirname(caller_info.path)
+      schema_path = File.join(spider_dir, "#{self.class.name}.json")
+
+      data = Nukitori(response, schema_path, prefix: method_name, model:, &block)
+      data.deep_symbolize_keys
+    end
+
     private
 
     def absolute_url(url, base:)
