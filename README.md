@@ -214,7 +214,7 @@ Packery v2 released
 I, [2025-12-16 12:47:21]  INFO -- infinite_scroll_spider: Browser: driver selenium_chrome has been destroyed
 I, [2025-12-16 12:47:21]  INFO -- infinite_scroll_spider: Spider: stopped: {spider_name: "infinite_scroll_spider", status: :completed, error: nil, environment: "development", start_time: 2025-12-16 12:47:05.372053 +0300, stop_time: 2025-12-16 12:47:21.505078 +0300, running_time: "16s", visits: {requests: 1, responses: 1}, items: {sent: 0, processed: 0}, events: {requests_errors: {}, drop_items_errors: {}, custom: {}}}
 ```
-</details><br>
+</details>
 
 ## AI-Powered Extraction
 
@@ -225,8 +225,8 @@ What if you could just describe the data you want and let AI figure out how to e
 require 'kimurai'
 
 Kimurai.configure do |config|
-  config.default_model = 'gemini-3-flash-preview' # OpenAI, Anthropic, Gemini, local LLMs, etc.
-  config.gemini_api_key = ENV['GEMINI_API_KEY']
+  config.default_model = "gemini-3-flash-preview" # OpenAI, Anthropic, Gemini, local LLMs, etc.
+  config.gemini_api_key = ENV["GEMINI_API_KEY"]
 end
 
 class GithubSpider < Kimurai::Base
@@ -236,7 +236,7 @@ class GithubSpider < Kimurai::Base
 
   def parse(response, url:, data: {})
     data = extract(response) do
-      string :next_page_url, description: 'Next page path url'
+      string :next_page_url, description: "Next page path url"
       array :repos do
         object do
           string :name
