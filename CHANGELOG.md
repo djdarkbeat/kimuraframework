@@ -1,4 +1,18 @@
 # CHANGELOG
+## 2.1.0
+### New
+* Min. required Ruby version is 3.2.0
+* **AI-powered data extraction with `extract` method** — Powered by [Nukitori](https://github.com/vifreefly/nukitori). Describe the data structure you want and let AI generate XPath selectors automatically. Selectors are cached for reuse, so AI is only called once per page type
+* **Configure Nukitori via Kimurai** — Set LLM provider settings (OpenAI, Anthropic, Gemini, etc.) directly in `Kimurai.configure` block
+* **Engine aliases** — Use shorter engine names: `:chrome` (alias for `:selenium_chrome`), `:firefox` (alias for `:selenium_firefox`)
+* **Top-level `@delay` option** — Set request delay directly as `@delay = 2..5` instead of nested `@config = { before_request: { delay: 2..5 } }`
+* **Auto spider name** — If `@name` is not provided, it's automatically derived from the class name
+* **Save array of items** — `save_to` helper now accepts an array of items to save at once
+
+### Improvements
+* `save_to` helper now uses pretty JSON by default for `:json` format (use `format: :compact_json` for compact output)
+* Request delay is now applied before the response is passed to the callback
+
 ## 2.0.1
 ### Fixes
 * Remove xpath as default Capybara selector type (fixes https://github.com/vifreefly/kimuraframework/issues/28)
