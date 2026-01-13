@@ -13,12 +13,9 @@ Kimurai is a modern Ruby web scraping framework designed to scrape and interact 
 require 'kimurai'
 
 class GithubSpider < Kimurai::Base
-  @name = "github_spider"
-  @engine = :selenium_chrome
+  @engine = :chrome
   @start_urls = ["https://github.com/search?q=ruby+web+scraping&type=repositories"]
-  @config = {
-    before_request: { delay: 3..5 }
-  }
+  @delay = 3..5
 
   def parse(response, url:, data: {})
     response.xpath("//div[@data-testid='results-list']//div[contains(@class, 'search-title')]/a").each do |a|
@@ -153,8 +150,7 @@ Okay, that was easy. How about JavaScript rendered websites with dynamic HTML? L
 require 'kimurai'
 
 class InfiniteScrollSpider < Kimurai::Base
-  @name = "infinite_scroll_spider"
-  @engine = :selenium_chrome
+  @engine = :chrome
   @start_urls = ["https://infinite-scroll.com/demo/full-page/"]
 
   def parse(response, url:, data: {})
@@ -220,8 +216,60 @@ I, [2025-12-16 12:47:21]  INFO -- infinite_scroll_spider: Spider: stopped: {spid
 ```
 </details><br>
 
+## AI-Powered Extraction
+
+What if you could just describe the data you want and let AI figure out how to extract it? With the built-in `extract` method powered by [Nukitori](https://github.com/vifreefly/nukitori), you can:
+
+```ruby
+# github_spider_ai.rb
+require 'kimurai'
+
+Kimurai.configure do |config|
+  config.default_model = 'gemini-3-flash-preview' # OpenAI, Anthropic, Gemini, local LLMs, etc.
+  config.gemini_api_key = ENV['GEMINI_API_KEY']
+end
+
+class GithubSpider < Kimurai::Base
+  @engine = :chrome
+  @start_urls = ["https://github.com/search?q=ruby+web+scraping&type=repositories"]
+  @delay = 3..5
+
+  def parse(response, url:, data: {})
+    data = extract(response) do
+      string :next_page_url, description: 'Next page path url'
+      array :repos do
+        object do
+          string :name
+          string :url
+          string :description
+          string :stars
+          string :language
+          array :tags, of: :string
+        end
+      end
+    end
+
+    save_to "results.json", data[:repos], format: :json
+
+    if data[:next_page_url]
+      request_to :parse, url: absolute_url(data[:next_page_url], base: url)
+    end
+  end
+end
+
+GithubSpider.crawl!
+```
+
+**How it works:**
+1. On the first page, `extract` sends the HTML to an LLM which generates XPath rules for your schema
+2. These rules are cached in a JSON file alongside your spider
+3. **All subsequent pages use the cached XPath — no more AI calls, pure fast extraction**
+4. When there's no "Next" link on the last page, the extracted value is `nil` and pagination stops
+
+Zero manual selectors. The AI figured out where everything lives, and that knowledge is reused for the entire crawl.
 
 ## Features
+* **AI-powered data extraction**: Use [Nukitori](https://github.com/vifreefly/nukitori) to extract structured data without writing XPath/CSS selectors — just describe what you want, and AI figures out how to extract it
 * Scrape JavaScript rendered websites out of the box
 * Supported engines: [Headless Chrome](https://developers.google.com/web/updates/2017/04/headless-chrome), [Headless Firefox](https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Headless_mode) or simple HTTP requests ([mechanize](https://github.com/sparklemotion/mechanize) gem)
 * Write spider code once, and use it with any supported engine later
@@ -249,6 +297,7 @@ I, [2025-12-16 12:47:21]  INFO -- infinite_scroll_spider: Spider: stopped: {spid
     * [browser object](#browser-object)
     * [request_to method](#request_to-method)
     * [save_to helper](#save_to-helper)
+    * [AI-powered extraction with extract](#ai-powered-extraction-with-extract)
     * [Skip duplicates](#skip-duplicates)
       * [Automatically skip all duplicate request urls](#automatically-skip-all-duplicate-request-urls)
       * [Storage object](#storage-object)
@@ -282,7 +331,7 @@ I, [2025-12-16 12:47:21]  INFO -- infinite_scroll_spider: Spider: stopped: {spid
 
 
 ## Installation
-Kimurai requires Ruby version `>= 3.1.0`. Officially supported platforms: `Linux` and `macOS`.
+Kimurai requires Ruby version `>= 3.2.0`. Officially supported platforms: `Linux` and `macOS`.
 
 1) If your system doesn't have the appropriate Ruby version, install it:
 
@@ -429,8 +478,8 @@ CLI arguments:
 Kimurai has support for the following engines and can mostly switch between them without the need to rewrite any code:
 
 * `:mechanize` – [pure Ruby fake http browser](https://github.com/sparklemotion/mechanize). Mechanize can't render JavaScript and doesn't know what the DOM is it. It can only parse the original HTML code of a page. Because of it, mechanize is much faster, takes much less memory and is in general much more stable than any real browser. It's recommended to use mechanize when possible; if the website doesn't use JavaScript to render any meaningful parts of its structure. Still, because mechanize is trying to mimic a real browser, it supports almost all of Capybara's [methods to interact with a web page](http://cheatrags.com/capybara) (filling forms, clicking buttons, checkboxes, etc).
-* `:selenium_chrome` – Chrome in headless mode driven by selenium. A modern headless browser solution with proper JavaScript rendering.
-* `:selenium_firefox` – Firefox in headless mode driven by selenium. Usually takes more memory than other drivers, but can sometimes be useful.
+* `:chrome` (`:selenium_chrome` alias) – Chrome in headless mode driven by selenium. A modern headless browser solution with proper JavaScript rendering.
+* `:firefox` (`:selenium_firefox` alias) – Firefox in headless mode driven by selenium. Usually takes more memory than other drivers, but can sometimes be useful.
 
 **Tip:** prepend a `HEADLESS=false` environment variable on the command line (i.e. `$ HEADLESS=false ruby spider.rb`) to launch an interactive browser in normal (not headless) mode and see its window (only for selenium-like engines). It works for the [console](#interactive-console) command as well.
 
@@ -443,7 +492,7 @@ require 'kimurai'
 
 class SimpleSpider < Kimurai::Base
   @name = "simple_spider"
-  @engine = :selenium_chrome
+  @engine = :chrome
   @start_urls = ["https://example.com/"]
 
   def parse(response, url:, data: {})
@@ -454,8 +503,8 @@ SimpleSpider.crawl!
 ```
 
 Where:
-* `@name` – a name for the spider
-* `@engine` – engine to use for the spider
+* `@name` – a name for the spider (optional)
+* `@engine` – engine to use for the spider (optional, default is `:mechanize`)
 * `@start_urls` – array of urls to process one-by-one inside the `parse` method
 * The `parse` method is the entry point, and should always be present in a spider class
 
@@ -478,7 +527,7 @@ Imagine that there is a product page that doesn't contain a category name. The c
 
 ```ruby
 class ProductsSpider < Kimurai::Base
-  @engine = :selenium_chrome
+  @engine = :chrome
   @start_urls = ["https://example-shop.com/example-product-category"]
 
   def parse(response, url:, data: {})
@@ -517,8 +566,7 @@ But, if you need to interact with a page (like filling form fields, clicking ele
 
 ```ruby
 class GoogleSpider < Kimurai::Base
-  @name = "google_spider"
-  @engine = :selenium_chrome
+  @engine = :chrome
   @start_urls = ["https://www.google.com/"]
 
   def parse(response, url:, data: {})
@@ -549,7 +597,7 @@ For making requests to a particular method, there is `request_to`. It requires a
 
 ```ruby
 class Spider < Kimurai::Base
-  @engine = :selenium_chrome
+  @engine = :chrome
   @start_urls = ["https://example.com/"]
 
   def parse(response, url:, data: {})
@@ -585,7 +633,7 @@ The `request_to` helper method makes things simpler. We could also do something 
 
 ```ruby
 class Spider < Kimurai::Base
-  @engine = :selenium_chrome
+  @engine = :chrome
   @start_urls = ["https://example.com/"]
 
   def parse(response, url:, data: {})
@@ -608,7 +656,7 @@ Sometimes all you need is to simply save scraped data to a file. You can use the
 
 ```ruby
 class ProductsSpider < Kimurai::Base
-  @engine = :selenium_chrome
+  @engine = :chrome
   @start_urls = ["https://example-shop.com/"]
 
   # ...
@@ -627,8 +675,8 @@ end
 ```
 
 Supported formats:
-* `:json` – JSON
-* `:pretty_json` – "pretty" JSON (`JSON.pretty_generate`)
+* `:json` – JSON (`JSON.pretty_generate`)
+* `:compact_json` – JSON
 * `:jsonlines` – [JSON Lines](http://jsonlines.org/)
 * `:csv` – CSV
 
@@ -642,13 +690,91 @@ While the spider is running, each new item will be appended to the output file. 
 
 > If you don't want the file to be cleared before each run, pass `append: true` like so: `save_to "scraped_products.json", item, format: :json, append: true`
 
+### AI-powered extraction with `extract`
+
+Writing and maintaining XPath/CSS selectors is tedious and error-prone. The `extract` method uses AI to generate selectors automatically — you just describe the data structure you want.
+
+**Configuration:**
+
+First, configure an LLM provider in your application:
+
+```ruby
+Kimurai.configure do |config|
+  config.default_model = 'gemini-3-flash-preview'
+  config.gemini_api_key = ENV['GEMINI_API_KEY']
+
+  # Or use OpenAI
+  # config.default_model = 'gpt-5.2'
+  # config.openai_api_key = ENV['OPENAI_API_KEY']
+
+  # Or Anthropic
+  # config.default_model = 'claude-sonnet-4-5'
+  # config.anthropic_api_key = ENV['ANTHROPIC_API_KEY']
+end
+```
+
+**Usage:**
+
+```ruby
+def parse(response, url:, data: {})
+  data = extract(response) do
+    string :title
+    string :price
+    string :description
+    array :features, of: :string
+  end
+
+  save_to "products.json", data, format: :json
+end
+```
+
+**Schema DSL:**
+
+- `string :field_name` — extracts text
+- `integer :field_name` — extracts integer
+- `number :field_name` — extracts float/decimal
+- `array :items do ... end` — extracts list of objects
+- `array :tags, of: :string` — extracts list of strings
+- `object do ... end` — nested structure
+- `description: '...'` — hint for AI about what to look for
+
+**How it works:**
+
+1. On first run, `extract` sends the HTML and your schema to an LLM
+2. The LLM returns XPath rules for each field
+3. These rules are cached in `SpiderName.json` alongside your spider file
+4. All subsequent extractions use cached XPath — fast and free, no more AI calls
+5. Each method gets its own prefix in the schema file, so different parse methods can have different schemas
+
+**Automatic pagination:**
+
+Include a next page field in your schema:
+
+```ruby
+data = extract(response) do
+  string :next_page_url, description: 'Next page link'
+  array :products do
+    object do
+      string :name
+      string :price
+    end
+  end
+end
+
+if data[:next_page_url]
+  request_to :parse, url: absolute_url(data[:next_page_url], base: url)
+end
+```
+
+When the last page has no "Next" link, the extracted value is `nil` and pagination stops naturally.
+
 ### Skip duplicates
 
 It's pretty common for websites to have duplicate pages. For example, when an e-commerce site has the same products in different categories. To skip duplicates, there is a simple `unique?` helper:
 
 ```ruby
 class ProductsSpider < Kimurai::Base
-  @engine = :selenium_chrome
+  @engine = :chrome
   @start_urls = ["https://example-shop.com/"]
 
   def parse(response, url:, data: {})
@@ -862,8 +988,7 @@ The `run_info` method is available from the `open_spider` and `close_spider` cla
 
 ```ruby
 class ExampleSpider < Kimurai::Base
-  @name = "example_spider"
-  @engine = :selenium_chrome
+  @engine = :chrome
   @start_urls = ["https://example.com/"]
 
   def self.close_spider
@@ -915,7 +1040,7 @@ You can also use the additional methods `completed?` or `failed?`
 
 ```ruby
 class Spider < Kimurai::Base
-  @engine = :selenium_chrome
+  @engine = :chrome
   @start_urls = ["https://example.com/"]
 
   def self.close_spider
@@ -953,7 +1078,7 @@ Kimurai supports environments. The default is `development`. To provide a custom
 Usage example:
 ```ruby
 class Spider < Kimurai::Base
-  @engine = :selenium_chrome
+  @engine = :chrome
   @start_urls = ["https://example.com/"]
 
   def self.close_spider
@@ -976,7 +1101,6 @@ Kimurai can process web pages concurrently: `in_parallel(:parse_product, urls, t
 require 'kimurai'
 
 class AmazonSpider < Kimurai::Base
-  @name = "amazon_spider"
   @engine = :mechanize
   @start_urls = ["https://www.amazon.com/"]
 
@@ -1088,7 +1212,7 @@ vic@Vics-MacBook-Air single %
 
 * `data:` – pass custom data like so: `in_parallel(:method, urls, threads: 3, data: { category: "Scraping" })`
 * `delay:` – set delay between requests like so: `in_parallel(:method, urls, threads: 3, delay: 2)`. Delay can be `Integer`, `Float` or `Range` (`2..5`). In case of a Range, the delay (in seconds) will be set randomly for each request: `rand (2..5) # => 3`
-* `engine:` – set custom engine like so: `in_parallel(:method, urls, threads: 3, engine: :selenium_chrome)`
+* `engine:` – set custom engine like so: `in_parallel(:method, urls, threads: 3, engine: :chrome)`
 * `config:` – set custom [config](#spider-config) options
 
 ### Active Support included
@@ -1190,7 +1314,7 @@ Kimurai.configure do |config|
 
   # Custom time zone (for logs):
   # config.time_zone = "UTC"
-  # config.time_zone = "Europe/Moscow"
+  # config.time_zone = "Europe/Berlin"
 
   # Provide custom chrome binary path (default is any available chrome/chromium in the PATH):
   # config.selenium_chrome_path = "/usr/bin/chromium-browser"
@@ -1306,7 +1430,7 @@ class Spider < Kimurai::Base
   USER_AGENTS = ["Chrome", "Firefox", "Safari", "Opera"]
   PROXIES = ["2.3.4.5:8080:http:username:password", "3.4.5.6:3128:http", "1.2.3.4:3000:socks5"]
 
-  @engine = :selenium_chrome
+  @engine = :chrome
   @start_urls = ["https://example.com/"]
   @config = {
     headers: { "custom_header" => "custom_value" },
@@ -1669,7 +1793,7 @@ end
 spiders/application_spider.rb
 ```ruby
 class ApplicationSpider < Kimurai::Base
-  @engine = :selenium_chrome
+  @engine = :chrome
   
   # Define pipelines (by order) for all spiders:
   @pipelines = [:validator, :saver]
@@ -1746,7 +1870,7 @@ spiders/github_spider.rb
 ```ruby
 class GithubSpider < Kimurai::Base
   @name = "github_spider"
-  @engine = :selenium_chrome
+  @engine = :chrome
   @start_urls = ["https://github.com/search?q=ruby+web+scraping&type=repositories"]
   @config = {
     before_request: { delay: 3..5 }
