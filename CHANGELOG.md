@@ -1,4 +1,9 @@
 # CHANGELOG
+
+## 2.2.0
+### New
+* Default engine now is `:chrome` (was `:mechanize`)
+
 ## 2.1.0
 ### New
 * Min. required Ruby version is 3.2.0
