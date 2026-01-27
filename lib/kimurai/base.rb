@@ -64,7 +64,7 @@ module Kimurai
 
     ###
 
-    @engine = :mechanize
+    @engine = :selenium_chrome
     @pipelines = []
     @config = {}
 

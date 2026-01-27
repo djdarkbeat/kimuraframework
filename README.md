@@ -3,10 +3,64 @@
     <img width="312" height="200" src="https://hsto.org/webt/_v/mt/tp/_vmttpbpzbt-y2aook642d9wpz0.png">
   </a>
 
-  <h1>Kimurai</h1>
+  <h1>Kimurai: AI-First Web Scraping Framework for Ruby</h1>
 </div>
 
-Kimurai is a modern Ruby web scraping framework designed to scrape and interact with JavaScript-rendered websites using headless antidetect Chromium, Firefox, or simple HTTP requests — right out of the box:
+Write web scrapers in Ruby using a clean, AI-assisted DSL. Kimurai uses AI to figure out where the data lives, then caches the selectors and scrapes with pure Ruby. Get the intelligence of an LLM without the per-request latency or token costs:
+
+```ruby
+# google_spider.rb
+require 'kimurai'
+
+class GoogleSpider < Kimurai::Base
+  @start_urls = ['https://www.google.com/search?q=web+scraping+ai']
+  @delay = 1
+
+  def parse(response, url:, data: {})
+    results = extract(response) do
+      array :organic_results do
+        object do
+          string :title
+          string :snippet
+          string :url
+        end
+      end
+
+      array :sponsored_results do
+        object do
+          string :title
+          string :snippet
+          string :url
+        end
+      end
+
+      array :people_also_search_for, of: :string
+
+      string :next_page_link
+      number :current_page_number
+    end
+
+    save_to 'google_results.json', results, format: :json
+
+    if results[:next_page_link] && results[:current_page_number] < 3
+      request_to :parse, url: absolute_url(results[:next_page_link], base: url)
+    end
+  end
+end
+
+GoogleSpider.crawl!
+```
+
+**How it works:**
+1. On the first request, `extract` sends the HTML + your schema to an LLM
+2. The LLM generates XPath selectors and caches them in `google_spider.json`
+3. **All subsequent requests use cached XPath — zero AI calls, pure fast Ruby extraction**
+4. Supports OpenAI, Anthropic, Gemini, or local LLMs via [Nukitori](https://github.com/vifreefly/nukitori)
+
+
+## Traditional Mode
+
+Prefer writing your own selectors? Kimurai works great as a traditional scraper too — with headless antidetect Chromium, Firefox, or simple HTTP requests:
 
 ```ruby
 # github_spider.rb
@@ -216,9 +270,9 @@ I, [2025-12-16 12:47:21]  INFO -- infinite_scroll_spider: Spider: stopped: {spid
 ```
 </details>
 
-## AI-Powered Extraction
+## AI Extraction — Configuration
 
-What if you could just describe the data you want and let AI figure out how to extract it? With the built-in `extract` method powered by [Nukitori](https://github.com/vifreefly/nukitori), you can:
+Configure your LLM provider to start using AI extraction. The `extract` method is powered by [Nukitori](https://github.com/vifreefly/nukitori):
 
 ```ruby
 # github_spider_ai.rb
@@ -260,13 +314,7 @@ end
 GithubSpider.crawl!
 ```
 
-**How it works:**
-1. On the first page, `extract` sends the HTML to an LLM which generates XPath rules for your schema
-2. These rules are cached in a JSON file alongside your spider
-3. **All subsequent pages use the cached XPath — no more AI calls, pure fast extraction**
-4. When there's no "Next" link on the last page, the extracted value is `nil` and pagination stops
-
-Zero manual selectors. The AI figured out where everything lives, and that knowledge is reused for the entire crawl.
+Selectors are cached in `github_spider_ai.json` after the first AI call — all subsequent requests use pure Ruby extraction.
 
 ## Features
 * **AI-powered data extraction**: Use [Nukitori](https://github.com/vifreefly/nukitori) to extract structured data without writing XPath/CSS selectors — just describe what you want, and AI figures out how to extract it
@@ -286,6 +334,8 @@ Zero manual selectors. The AI figured out where everything lives, and that knowl
 
 ## Table of Contents
 * [Kimurai](#kimurai)
+  * [Traditional Mode](#traditional-mode)
+  * [AI Extraction — Configuration](#ai-extraction--configuration)
   * [Features](#features)
   * [Table of Contents](#table-of-contents)
   * [Installation](#installation)
@@ -504,7 +554,7 @@ SimpleSpider.crawl!
 
 Where:
 * `@name` – a name for the spider (optional)
-* `@engine` – engine to use for the spider (optional, default is `:mechanize`)
+* `@engine` – engine to use for the spider (optional, default is `:selenium_chrome`)
 * `@start_urls` – array of urls to process one-by-one inside the `parse` method
 * The `parse` method is the entry point, and should always be present in a spider class
 
@@ -1472,7 +1522,7 @@ end
   # Custom User Agent – string or lambda
   #
   # Use lambda if you want to rotate user agents before each run:
-  # 	user_agent: -> { ARRAY_OF_USER_AGENTS.sample }
+  #   user_agent: -> { ARRAY_OF_USER_AGENTS.sample }
   #
   # Works for all engines
   user_agent: "Mozilla/5.0 Firefox/61.0",
@@ -1484,10 +1534,10 @@ end
   cookies: [],
 
   # Proxy – string or lambda. Format for a proxy string: "ip:port:protocol:user:password"
-  # 	`protocol` can be http or socks5. User and password are optional.
+  #   `protocol` can be http or socks5. User and password are optional.
   #
   # Use lambda if you want to rotate proxies before each run:
-  # 	proxy: -> { ARRAY_OF_PROXIES.sample }
+  #   proxy: -> { ARRAY_OF_PROXIES.sample }
   #
   # Works for all engines, but keep in mind that Selenium drivers don't support proxies
   # with authorization. Also, Mechanize doesn't support socks5 proxy format (only http).
@@ -1531,10 +1581,10 @@ end
   # and if the url already exists in this scope, the request will be skipped.
   #
   # You can configure this setting by providing additional options as hash:
-  # 	`skip_duplicate_requests: { scope: :custom_scope, check_only: true }`, where:
-  # 		`scope:` – use a custom scope other than `:requests_urls`
-  # 		`check_only:` – if true, the url will not be added to the scope
-  # 		
+  #   `skip_duplicate_requests: { scope: :custom_scope, check_only: true }`, where:
+  #     `scope:` – use a custom scope other than `:requests_urls`
+  #     `check_only:` – if true, the url will not be added to the scope
+  #     
   # Works for all drivers
   skip_duplicate_requests: true,
 
@@ -1565,8 +1615,8 @@ end
   # Handle page encoding while parsing html response using Nokogiri
   #
   # There are two ways to use this option:
-  # 	encoding: :auto # auto-detect from <meta http-equiv="Content-Type"> or <meta charset> tags
-  #		encoding: "GB2312" # set encoding manually
+  #   encoding: :auto # auto-detect from <meta http-equiv="Content-Type"> or <meta charset> tags
+  #   encoding: "GB2312" # set encoding manually
   #
   # This option is not set by default
   encoding: nil,

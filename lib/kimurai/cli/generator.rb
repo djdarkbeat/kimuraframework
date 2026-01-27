@@ -35,7 +35,7 @@ module Kimurai
 
         return if in_project
 
-        insert_into_file spider_path, "  @engine = :mechanize\n", after: "@name = \"#{spider_name}\"\n"
+        insert_into_file spider_path, "  @engine = :chrome\n", after: "@name = \"#{spider_name}\"\n"
         prepend_to_file spider_path, "require 'kimurai'\n\n"
         append_to_file spider_path, "\n#{spider_class}.crawl!"
       end
