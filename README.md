@@ -6,7 +6,7 @@
   <h1>Kimurai: AI-First Web Scraping Framework for Ruby</h1>
 </div>
 
-Write web scrapers in Ruby using a clean, AI-assisted DSL. Kimurai uses AI to figure out where the data lives, then caches the selectors and scrapes with pure Ruby. Get the intelligence of an LLM without the per-request latency or token costs:
+Write web scrapers in Ruby using a clean, AI-assisted DSL. [Kimurai](https://kimur.ai/framework) uses AI to figure out where the data lives, then caches the selectors and scrapes with pure Ruby. Get the intelligence of an LLM without the per-request latency or token costs:
 
 ```ruby
 # google_spider.rb
